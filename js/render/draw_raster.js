@@ -10,15 +10,6 @@ function drawRaster(painter, sourceCache, layer, coords) {
 
     const gl = painter.gl;
 
-    painter.depthMask(false);
-
-    const loadingCoords = sourceCache.getLoadingCoords(Date.now() - layer.paint['raster-fade-duration']);
-    for (let i = 0; i < loadingCoords.length; i++) {
-        const loadingCoord = loadingCoords[i];
-        painter.setDepthSublayer(0);
-        drawLoadingTile(painter, sourceCache, layer, loadingCoord);
-    }
-
     gl.enable(gl.DEPTH_TEST);
     painter.depthMask(true);
 
@@ -35,6 +26,14 @@ function drawRaster(painter, sourceCache, layer, coords) {
     }
 
     gl.depthFunc(gl.LEQUAL);
+
+    gl.disable(gl.DEPTH_TEST);
+
+    const loadingCoords = sourceCache.getLoadingCoords(Date.now() - layer.paint['raster-fade-duration']);
+    for (let i = 0; i < loadingCoords.length; i++) {
+        const loadingCoord = loadingCoords[i];
+        drawLoadingTile(painter, sourceCache, layer, loadingCoord);
+    }
 }
 
 function drawRasterTile(painter, sourceCache, layer, coord) {
