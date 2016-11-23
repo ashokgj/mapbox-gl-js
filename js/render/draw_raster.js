@@ -21,14 +21,13 @@ function drawRaster(painter, sourceCache, layer, coords) {
     for (let i = 0; i < coords.length; i++) {
         const coord = coords[i];
         // set the lower zoom level to sublayer 0, and higher zoom levels to higher sublayers
-        painter.setDepthSublayer(coord.z - minTileZ + 1);
+        painter.setDepthSublayer(coord.z - minTileZ);
         drawRasterTile(painter, sourceCache, layer, coord);
     }
 
     gl.depthFunc(gl.LEQUAL);
 
     gl.disable(gl.DEPTH_TEST);
-
     const loadingCoords = sourceCache.getLoadingCoords(Date.now() - layer.paint['raster-fade-duration']);
     for (let i = 0; i < loadingCoords.length; i++) {
         const loadingCoord = loadingCoords[i];
