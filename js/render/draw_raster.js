@@ -1,6 +1,7 @@
 'use strict';
 
 const util = require('../util/util');
+const pattern = require('./pattern');
 
 module.exports = drawRaster;
 
@@ -8,6 +9,15 @@ function drawRaster(painter, sourceCache, layer, coords) {
     if (painter.isOpaquePass) return;
 
     const gl = painter.gl;
+
+    painter.depthMask(false);
+
+    const loadingCoords = sourceCache.getLoadingCoords(Date.now() - layer.paint['raster-fade-duration']);
+    for (let i = 0; i < loadingCoords.length; i++) {
+        const loadingCoord = loadingCoords[i];
+        painter.setDepthSublayer(0);
+        drawLoadingTile(painter, sourceCache, layer, loadingCoord);
+    }
 
     gl.enable(gl.DEPTH_TEST);
     painter.depthMask(true);
@@ -20,7 +30,7 @@ function drawRaster(painter, sourceCache, layer, coords) {
     for (let i = 0; i < coords.length; i++) {
         const coord = coords[i];
         // set the lower zoom level to sublayer 0, and higher zoom levels to higher sublayers
-        painter.setDepthSublayer(coord.z - minTileZ);
+        painter.setDepthSublayer(coord.z - minTileZ + 1);
         drawRasterTile(painter, sourceCache, layer, coord);
     }
 
@@ -103,6 +113,44 @@ function saturationFactor(saturation) {
     return saturation > 0 ?
         1 - 1 / (1.001 - saturation) :
         -saturation;
+}
+
+function drawLoadingTile(painter, sourceCache, layer, coord) {
+    const gl = painter.gl;
+    const transform = painter.transform;
+    const tileSize = transform.tileSize;
+    const color = layer.paint['raster-loading-color'];
+    const image = layer.paint['raster-loading-pattern'];
+
+    const tile = sourceCache.getTile(coord);
+    let opacityT;
+    if (tile.timeAdded) {
+        opacityT = 1 - (Date.now() - sourceCache.getTile(coord).timeAdded) / layer.paint['raster-fade-duration'];
+    } else {
+        opacityT = 1;
+    }
+    const opacity = layer.paint['raster-loading-opacity'] * opacityT;
+
+    gl.disable(gl.STENCIL_TEST);
+
+    let program;
+    if (image) {
+        program = painter.useProgram('fillPattern', painter.basicFillProgramConfiguration);
+        pattern.prepare(image, painter, program);
+        painter.tileExtentPatternVAO.bind(gl, program, painter.tileExtentBuffer);
+    } else {
+        program = painter.useProgram('fill', painter.basicFillProgramConfiguration);
+        gl.uniform4fv(program.u_color, color);
+        painter.tileExtentVAO.bind(gl, program, painter.tileExtentBuffer);
+    }
+
+    gl.uniform1f(program.u_opacity, opacity);
+
+    if (image) {
+        pattern.setTile({coord, tileSize}, painter, program);
+    }
+    gl.uniformMatrix4fv(program.u_matrix, false, painter.transform.calculatePosMatrix(coord));
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, painter.tileExtentBuffer.length);
 }
 
 function getOpacities(tile, parentTile, layer, transform) {
